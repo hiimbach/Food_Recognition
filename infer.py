@@ -1,3 +1,4 @@
+import numbers
 import numpy as np
 import cv2
 import torch
@@ -7,7 +8,7 @@ from utils.general import check_img_size, non_max_suppression, set_logging
 from utils.torch_utils import select_device
 
 
-class CarDetection:
+class FoodDetection:
     def __init__(self):
         # Initialize
         set_logging()
@@ -45,9 +46,8 @@ class CarDetection:
 
         result = {}
         pred = pred[0]
-        number_of_car = pred.shape[0]
-        result['number_of_car'] = number_of_car
-        for i in range(number_of_car):
-            result[f"bounding box of car {i+1}"] = list(map(int, pred[i][:4].tolist()))
+        number_of_ingredient = pred.shape[0]
+        for i in range(number_of_ingredient):
+            result[f"{pred[i][4]}"] = pred[i][5]
 
         return result
