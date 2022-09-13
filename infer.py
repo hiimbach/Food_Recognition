@@ -44,10 +44,14 @@ class FoodDetection:
         # Apply NMS
         pred = non_max_suppression(pred, 0.25, 0.45, classes=None, agnostic=False)
 
+        # class names
+        names = ['Water', 'Pear', 'Egg', 'Butter', 'Apple', 'Cheese', 'Carrot', 'Onion', 'Banana', 'Mixed vegetables', 'Almonds', 'Dark chocolate', 'Biscuits', 'Corn', 'Pineapple', 'Peanut butter', 'Beer', 'Pumpkin', 'Mango', 'Cucumber', 'Pasta', 'Mayonnaise', 'Chicken', 'Orange', 'Ketchup', 'Milk', 'Tea', 'Black olives', 'Honey', 'Raspberries', 'Sour cream', 'Zucchini', 'Quinoa', 'Milk chocolate', 'Sausage', 'Lemon', 'Dates', 'Sesame seeds', 'Cottage cheese', 'Cream cheese', 'Blueberries', 'Cream', 'Bread', 'Strawberries' ]
+
         result = {}
         pred = pred[0]
         number_of_ingredient = pred.shape[0]
         for i in range(number_of_ingredient):
-            result[f"{pred[i][4]}"] = pred[i][5]
+            ind = int(pred[i][5])
+            result[f"{pred[i][4]}"] = names[ind]
 
         return result

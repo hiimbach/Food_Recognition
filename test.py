@@ -1,9 +1,10 @@
 import cv2
 from infer import FoodDetection
+import os
 
 
-sample_image = cv2.imread("sample_image/vid_4_1840.jpg")
 model = FoodDetection()
-
-result = model.detect(sample_image)
-print(result)
+for img in os.listdir("sample_image"):
+    sample_image = cv2.imread("sample_image/" + img)
+    result = model.detect(sample_image)
+    print(result)
