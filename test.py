@@ -5,6 +5,7 @@ import os
 
 model = FoodDetection()
 for img in os.listdir("sample_image"):
-    sample_image = cv2.imread("sample_image/" + img)
-    result = model.detect(sample_image)
-    print(result)
+    if img.split(".")[-1] == "jpg":
+        sample_image = cv2.imread("sample_image/" + img)
+        result = model.detect(sample_image)
+        print(result)
