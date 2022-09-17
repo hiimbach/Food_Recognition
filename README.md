@@ -20,6 +20,33 @@ mlchain run -c mlconfig.yaml
 ```
 An API server will be hosted at http://0.0.0.0:8001
 
+
+### Docker
+
+Run with cpu
+```
+DOCKER_BUILDKIT=1 docker build -t food_detection_cpu -f cpu.Dockerfile .
+```
+
+```
+docker run --rm -it -p 8001:8001 food_detection_cpu
+```
+
+Run with gpu
+```
+DOCKER_BUILDKIT=1 docker build -t food_detection_gpu -f gpu.Dockerfile .
+```
+
+```
+docker run --gpus=all --rm -it -p 8001:8001 food_detection_gpu
+```
+
+If you want test with streamlit, let's create a new terminal, and run:
+```
+streamlit run streamlit/streamlit.py
+```
+Hosted at http://0.0.0.0:8001
+
 ---
 If you have any question or encouter any problem regarding this repo. Please open an issue and cc me. Thank you.
 
