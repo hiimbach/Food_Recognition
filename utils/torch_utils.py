@@ -7,12 +7,10 @@ import os
 import platform
 import subprocess
 import time
-from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
 
 import torch
-import torch.backends.cudnn as cudnn
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
@@ -22,28 +20,6 @@ try:
 except ImportError:
     thop = None
 logger = logging.getLogger(__name__)
-
-
-@contextmanager
-def torch_distributed_zero_first(local_rank: int):
-    """
-    Decorator to make all processes in distributed training wait for each local_master to do something.
-    """
-    if local_rank not in [-1, 0]:
-        torch.distributed.barrier()
-    yield
-    if local_rank == 0:
-        torch.distributed.barrier()
-
-
-def init_torch_seeds(seed=0):
-    # Speed-reproducibility tradeoff https://pytorch.org/docs/stable/notes/randomness.html
-    torch.manual_seed(seed)
-    if seed == 0:  # slower, more reproducible
-        cudnn.benchmark, cudnn.deterministic = False, True
-    else:  # faster, less reproducible
-        cudnn.benchmark, cudnn.deterministic = True, False
-
 
 def date_modified(path=__file__):
     # return human-readable file modification date, i.e. '2021-3-26'
@@ -131,16 +107,6 @@ def profile(x, ops, n=100, device=None):
         p = sum(list(x.numel() for x in m.parameters())) if isinstance(m, nn.Module) else 0  # parameters
         print(f'{p:12}{flops:12.4g}{dtf:16.4g}{dtb:16.4g}{str(s_in):>24s}{str(s_out):>24s}')
 
-
-def is_parallel(model):
-    return type(model) in (nn.parallel.DataParallel, nn.parallel.DistributedDataParallel)
-
-
-def intersect_dicts(da, db, exclude=()):
-    # Dictionary intersection of matching keys and shapes, omitting 'exclude' keys, using da values
-    return {k: v for k, v in da.items() if k in db and not any(x in k for x in exclude) and v.shape == db[k].shape}
-
-
 def initialize_weights(model):
     for m in model.modules():
         t = type(m)
@@ -151,31 +117,6 @@ def initialize_weights(model):
             m.momentum = 0.03
         elif t in [nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6]:
             m.inplace = True
-
-
-def find_modules(model, mclass=nn.Conv2d):
-    # Finds layer indices matching module class 'mclass'
-    return [i for i, m in enumerate(model.module_list) if isinstance(m, mclass)]
-
-
-def sparsity(model):
-    # Return global model sparsity
-    a, b = 0., 0.
-    for p in model.parameters():
-        a += p.numel()
-        b += (p == 0).sum()
-    return b / a
-
-
-def prune(model, amount=0.3):
-    # Prune model to requested global sparsity
-    import torch.nn.utils.prune as prune
-    print('Pruning model... ', end='')
-    for name, m in model.named_modules():
-        if isinstance(m, nn.Conv2d):
-            prune.l1_unstructured(m, name='weight', amount=amount)  # prune
-            prune.remove(m, 'weight')  # make permanent
-    print(' %.3g global sparsity' % sparsity(model))
 
 
 def fuse_conv_and_bn(conv, bn):
@@ -264,44 +205,6 @@ def copy_attr(a, b, include=(), exclude=()):
             continue
         else:
             setattr(a, k, v)
-
-
-class ModelEMA:
-    """ Model Exponential Moving Average from https://github.com/rwightman/pytorch-image-models
-    Keep a moving average of everything in the model state_dict (parameters and buffers).
-    This is intended to allow functionality like
-    https://www.tensorflow.org/api_docs/python/tf/train/ExponentialMovingAverage
-    A smoothed version of the weights is necessary for some training schemes to perform well.
-    This class is sensitive where it is initialized in the sequence of model init,
-    GPU assignment and distributed training wrappers.
-    """
-
-    def __init__(self, model, decay=0.9999, updates=0):
-        # Create EMA
-        self.ema = deepcopy(model.module if is_parallel(model) else model).eval()  # FP32 EMA
-        # if next(model.parameters()).device.type != 'cpu':
-        #     self.ema.half()  # FP16 EMA
-        self.updates = updates  # number of EMA updates
-        self.decay = lambda x: decay * (1 - math.exp(-x / 2000))  # decay exponential ramp (to help early epochs)
-        for p in self.ema.parameters():
-            p.requires_grad_(False)
-
-    def update(self, model):
-        # Update EMA parameters
-        with torch.no_grad():
-            self.updates += 1
-            d = self.decay(self.updates)
-
-            msd = model.module.state_dict() if is_parallel(model) else model.state_dict()  # model state_dict
-            for k, v in self.ema.state_dict().items():
-                if v.dtype.is_floating_point:
-                    v *= d
-                    v += (1. - d) * msd[k].detach()
-
-    def update_attr(self, model, include=(), exclude=('process_group', 'reducer')):
-        # Update EMA attributes
-        copy_attr(self.ema, model, include, exclude)
-
 
 class BatchNormXd(torch.nn.modules.batchnorm._BatchNorm):
     def _check_input_dim(self, input):
